@@ -39,6 +39,10 @@ docker run --rm -p 8080:8080 securedledger-full
 | [`build.yml`](.github/workflows/build.yml) | `mvn verify` — compile + unit/integration tests |
 | [`cve-scan.yml`](.github/workflows/cve-scan.yml) | Trivy on the app image; **gate: 0 fixable Critical/High**; unfixed inventoried |
 | [`oscap-stig-scan.yml`](.github/workflows/oscap-stig-scan.yml) | OpenSCAP **DISA RHEL 9 STIG** scan of the app image (reuses the base's answer file + attestation), gated |
+| [`stig-dast-scan.yml`](.github/workflows/stig-dast-scan.yml) | **DISA API SRG** + **DISA ASD STIG** black-box scans against the running app (`stig-api-scanner` + `stig-asd-scanner`); SARIF → Security tab, CRITICAL-gated |
+
+The DAST configs live in [`stig/api-srg.yaml`](stig/api-srg.yaml) and
+[`stig/asd-stig.yaml`](stig/asd-stig.yaml).
 
 ## Automation
 
