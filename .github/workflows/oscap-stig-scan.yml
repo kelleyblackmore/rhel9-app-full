@@ -1,0 +1,92 @@
+name: OpenSCAP DISA RHEL 9 STIG (app image)
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+  schedule:
+    - cron: '0 5 * * 1'   # weekly re-verify
+  workflow_dispatch:
+
+jobs:
+  stig-scan:
+    name: STIG-scan the SecureLedger app image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build application image
+        run: docker build -f Containerfile -t localhost/rhel9-app-full:latest .
+
+      - name: Build OpenSCAP scanner image (FROM the app image)
+        run: |
+          docker build -f oscap/Containerfile.scan \
+            --build-arg BASE_IMAGE=localhost/rhel9-app-full:latest \
+            -t localhost/rhel9-app-full-scan:latest .
+
+      - name: Baseline STIG scan (no answer file)
+        run: |
+          docker rm -f stig-baseline 2>/dev/null || true
+          docker run --name stig-baseline localhost/rhel9-app-full-scan:latest || true
+          mkdir -p oscap/results/baseline
+          docker cp stig-baseline:/scan/results/. oscap/results/baseline/
+          docker rm -f stig-baseline
+
+      - name: Generate answer file + tailored STIG scan
+        run: |
+          docker rm -f stig-tailored 2>/dev/null || true
+          docker run --name stig-tailored --entrypoint bash localhost/rhel9-app-full-scan:latest -c '
+            /usr/local/bin/generate-tailoring.sh /scan/oscap/not-applicable.rules /scan/results/tailoring-rhel9-stig-container.xml
+            TAILORING_FILE=/scan/results/tailoring-rhel9-stig-container.xml \
+            TAILORING_PROFILE=xccdf_mil.disa.stig_profile_stig_container \
+            REMEDIATE=false /usr/local/bin/scan.sh' || true
+          mkdir -p oscap/results/tailored
+          docker cp stig-tailored:/scan/results/. oscap/results/tailored/
+          docker rm -f stig-tailored
+
+      - name: Generate Not-Applicable attestation
+        run: |
+          docker run --rm --entrypoint cat localhost/rhel9-app-full-scan:latest \
+            /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml > ssg-rhel9-ds.xml || true
+          python3 oscap/generate-na-attestation.py \
+            --results oscap/results/baseline/results-xccdf.xml \
+            --na-rules oscap/not-applicable.rules \
+            --datastream ssg-rhel9-ds.xml \
+            --image ghcr.io/kelleyblackmore/rhel9-app-full:latest \
+            --out-md oscap/results/stig-na-attestation.md \
+            --out-csv oscap/results/stig-na-attestation.csv || true
+
+      - name: Compliance gate + job summary
+        env:
+          THRESHOLD: '100'
+        run: |
+          summary="oscap/results/tailored/summary.txt"
+          cat "$summary"
+          score=$(awk -F': *' '/^score/{gsub(/%/,"",$2); print $2}' "$summary")
+          {
+            echo "## SecureLedger (full base) — DISA RHEL 9 STIG"
+            echo '```'; cat "$summary"; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Tailored STIG score: ${score}% (threshold ${THRESHOLD}%)"
+          if [ -z "$score" ] || [ "$score" -lt "$THRESHOLD" ]; then
+            echo "::error::STIG compliance ${score}% is below threshold ${THRESHOLD}%"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oscap-stig-artifacts
+          path: |
+            oscap/results/baseline/report.html
+            oscap/results/baseline/summary.txt
+            oscap/results/tailored/report.html
+            oscap/results/tailored/results-arf.xml
+            oscap/results/tailored/summary.txt
+            oscap/results/stig-na-attestation.md
+            oscap/results/stig-na-attestation.csv
+          retention-days: 30

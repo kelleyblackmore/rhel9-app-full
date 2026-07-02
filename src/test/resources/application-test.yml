@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    url: "jdbc:h2:mem:secureledger;DB_CLOSE_DELAY=-1"
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    hikari:
+      maximum-pool-size: 5
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+    open-in-view: false
+
+security:
+  jwt:
+    secret: "test-only-hs256-secret-key-that-is-definitely-long-enough-0123456789abcd"
+    expiration-seconds: 3600
+    issuer: secureledger
+  rate-limit:
+    # Default high capacity so ordinary tests are never throttled; the rate-limit
+    # test overrides this with its own low capacity in a dedicated context.
+    capacity: 1000
+    refill-period-seconds: 60
+
+logging:
+  level:
+    root: WARN

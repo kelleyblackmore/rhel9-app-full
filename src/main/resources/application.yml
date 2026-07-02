@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: secureledger
+
+  datasource:
+    url: "jdbc:sqlite:${DB_PATH:/app/data/secureledger.db}"
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite is a single-writer file DB; keep the pool small to avoid write contention.
+      maximum-pool-size: 1
+      pool-name: SecureLedgerPool
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.SQLiteDialect
+        format_sql: false
+    open-in-view: false
+
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+  error:
+    include-message: always
+
+# JWT + rate-limit configuration (override the secret in production via env SECURITY_JWT_SECRET)
+security:
+  jwt:
+    secret: "${SECURITY_JWT_SECRET:change-me-in-production-this-is-a-long-dev-only-hs256-secret-key-0123456789}"
+    expiration-seconds: 3600
+    issuer: secureledger
+  rate-limit:
+    capacity: 100
+    refill-period-seconds: 60
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: SecureLedger
+    description: Secure task & audit REST API
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: INFO
+    org.hibernate.SQL: WARN

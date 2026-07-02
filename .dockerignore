@@ -1,0 +1,29 @@
+# Build output
+target/
+
+# Version control
+.git/
+.gitignore
+
+# CI / project meta (added separately, not needed in the build context)
+.github/
+*.md
+LICENSE
+renovate.json
+.gitattributes
+
+# Maven wrapper caches / local settings
+.mvn/
+!.mvn/wrapper/maven-wrapper.properties
+
+# IDE / editor
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS cruft
+.DS_Store
+Thumbs.db
