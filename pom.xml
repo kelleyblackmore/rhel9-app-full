@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.13</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
@@ -23,9 +23,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jjwt.version>0.12.6</jjwt.version>
         <sqlite-jdbc.version>3.49.1.0</sqlite-jdbc.version>
-        <hibernate-community-dialects.version>6.5.3.Final</hibernate-community-dialects.version>
         <bucket4j.version>8.10.1</bucket4j.version>
-        <springdoc.version>2.6.0</springdoc.version>
+        <springdoc.version>2.8.17</springdoc.version>
+        <!-- Force the latest patched Tomcat (CVE fixes) over the Boot-managed default -->
+        <tomcat.version>10.1.56</tomcat.version>
     </properties>
 
     <dependencies>
@@ -76,11 +77,12 @@
             <version>${sqlite-jdbc.version}</version>
         </dependency>
 
-        <!-- Hibernate community dialects (provides SQLiteDialect); pinned to match Boot's Hibernate ORM -->
+        <!-- Hibernate community dialects (provides SQLiteDialect); use Boot's managed
+             Hibernate version so it always matches, regardless of the Boot version -->
         <dependency>
             <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-community-dialects</artifactId>
-            <version>${hibernate-community-dialects.version}</version>
+            <version>${hibernate.version}</version>
         </dependency>
 
         <!-- JWT (jjwt 0.12.x) -->
