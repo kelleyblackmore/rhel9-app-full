@@ -1,0 +1,9 @@
+# Accepted CVEs — no usable released fix for our dependency line yet.
+# Reviewed 2026-07-02. Each entry has an expiry so Trivy re-surfaces it for re-review;
+# Renovate/the daily scan will also flag the real fix the moment it ships.
+
+# CVE-2026-54515 (jackson-databind, MEDIUM): the compatible fixes (2.18.9 / 2.21.5 /
+# 2.22.1) are NOT yet published to Maven Central; the only released fix is jackson
+# 3.1.4, which requires Spring Boot 4 (this app is on Spring Boot 3.5 / jackson 2.x).
+# Accept until a 2.x fix releases (Renovate will bump jackson-bom automatically).
+CVE-2026-54515 exp:2026-12-31
