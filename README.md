@@ -40,9 +40,19 @@ docker run --rm -p 8080:8080 securedledger-full
 | [`cve-scan.yml`](.github/workflows/cve-scan.yml) | Trivy on the app image; **gate: 0 fixable Critical/High**; unfixed inventoried |
 | [`oscap-stig-scan.yml`](.github/workflows/oscap-stig-scan.yml) | OpenSCAP **DISA RHEL 9 STIG** scan of the app image (reuses the base's answer file + attestation), gated |
 | [`stig-dast-scan.yml`](.github/workflows/stig-dast-scan.yml) | **DISA API SRG** + **DISA ASD STIG** black-box scans against the running app (`stig-api-scanner` + `stig-asd-scanner`); SARIF → Security tab, CRITICAL-gated |
+| [`stig-checklist.yml`](.github/workflows/stig-checklist.yml) | Consolidated **`.ckl` + `.cklb`** checklist (RHEL 9 STIG + API SRG + ASD STIG in one multi-STIG file) for **STIG Manager / STIG Viewer** — weekly + manual |
 
 The DAST configs live in [`stig/api-srg.yaml`](stig/api-srg.yaml) and
 [`stig/asd-stig.yaml`](stig/asd-stig.yaml).
+
+### Consolidated checklist for STIG Manager / STIG Viewer
+
+STIG Manager and STIG Viewer read `.ckl`/`.cklb` checklists and XCCDF SCAP results
+— **not** SARIF. [`stig/build-checklist.py`](stig/build-checklist.py) merges the
+OpenSCAP RHEL 9 STIG results + the API SRG + ASD STIG scanner results into **one
+multi-STIG checklist**, emitted as both `.ckl` (STIG Viewer 2/3, STIG Manager,
+eMASS) and `.cklb` (STIG Viewer 3), uploaded as the `stig-checklist` artifact.
+Import it directly into STIG Manager or open it in STIG Viewer.
 
 ## Automation
 

@@ -1,0 +1,103 @@
+name: Consolidated STIG checklist (.ckl + .cklb)
+
+# Heavy, comprehensive evidence job: OpenSCAP RHEL 9 STIG + API SRG + ASD STIG,
+# merged into one multi-STIG checklist for STIG Manager / STIG Viewer.
+# Not on every push (dispatch + weekly) to keep CI lean.
+on:
+  schedule:
+    - cron: '0 7 * * 1'   # weekly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checklist:
+    name: Build the consolidated STIG checklist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build app image
+        run: docker build -f Containerfile -t app:ckl .
+
+      # ---------- OpenSCAP RHEL 9 STIG (baseline: all selected rules) ----------
+      - name: Build OpenSCAP scanner
+        run: docker build -f oscap/Containerfile.scan --build-arg BASE_IMAGE=app:ckl -t app-oscap:ckl .
+
+      - name: Run OpenSCAP scan + extract datastream
+        run: |
+          docker rm -f oscapc 2>/dev/null || true
+          docker run --name oscapc app-oscap:ckl || true      # exit 2 on findings is fine
+          docker cp oscapc:/scan/results/results-xccdf.xml oscap-results.xml
+          docker rm -f oscapc
+          docker run --rm --entrypoint cat app-oscap:ckl \
+            /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml > ssg-rhel9-ds.xml
+
+      # ---------- DAST: API SRG + ASD STIG ----------
+      - name: Start app + wait for health
+        run: |
+          docker run -d --name app -p 8080:8080 app:ckl
+          for i in $(seq 1 90); do curl -fsS http://localhost:8080/healthz >/dev/null 2>&1 && break; sleep 2; done
+          curl -fsS http://localhost:8080/healthz || { docker logs app; exit 1; }
+
+      - name: Obtain admin JWT
+        run: |
+          TOKEN=""
+          for i in $(seq 1 10); do
+            TOKEN=$(curl -fsS -X POST http://localhost:8080/api/auth/login \
+              -H 'Content-Type: application/json' \
+              -d '{"username":"admin","password":"admin123"}' | jq -r '.token // empty')
+            [ -n "$TOKEN" ] && break; sleep 2
+          done
+          [ -n "$TOKEN" ] || { docker logs app; exit 1; }
+          echo "::add-mask::$TOKEN"
+          echo "API_BEARER_TOKEN=$TOKEN"  >> "$GITHUB_ENV"
+          echo "TEST_BEARER_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: API SRG scan (json)
+        continue-on-error: true
+        uses: kelleyblackmore/stig-api-scanner@master
+        with:
+          config: stig/api-srg.yaml
+          format: json
+          output: api.json
+          fail-severity: critical
+
+      - name: ASD STIG scan (json)
+        continue-on-error: true
+        uses: kelleyblackmore/stig-asd-scanner@master
+        with:
+          config: stig/asd-stig.yaml
+          format: json
+          output: asd.json
+          fail-severity: critical
+
+      # ---------- consolidate ----------
+      - name: Build consolidated checklist (.ckl + .cklb)
+        run: |
+          python3 stig/build-checklist.py \
+            --asset secureledger-full --target http://localhost:8080 \
+            --oscap-xccdf oscap-results.xml --oscap-datastream ssg-rhel9-ds.xml \
+            --na-rules oscap/not-applicable.rules \
+            --api-json api.json --asd-json asd.json \
+            --out-ckl secureledger-full.ckl --out-cklb secureledger-full.cklb
+
+      - name: Validate outputs
+        run: |
+          python3 -c "import xml.etree.ElementTree as ET; ET.parse('secureledger-full.ckl'); print('CKL well-formed XML')"
+          python3 -c "import json;d=json.load(open('secureledger-full.cklb'));print('CKLB valid JSON,',len(d['stigs']),'STIGs')"
+
+      - name: App logs
+        if: always()
+        run: docker logs app || true
+
+      - name: Upload checklist
+        uses: actions/upload-artifact@v4
+        with:
+          name: stig-checklist
+          path: |
+            secureledger-full.ckl
+            secureledger-full.cklb
+          retention-days: 90
